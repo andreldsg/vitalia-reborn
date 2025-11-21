@@ -890,7 +890,7 @@ void look_at_room(struct char_data *ch, int ignore_brief)
     struct room_data *rm = &world[IN_ROOM(ch)];
     room_vnum target_room;
     target_room = IN_ROOM(ch);
-    int i;
+    int i, obj_list_mode;
     if (!ch->desc)
         return;
     if (IS_DARK(IN_ROOM(ch)) && !CAN_SEE_IN_DARK(ch)) {
@@ -935,8 +935,13 @@ void look_at_room(struct char_data *ch, int ignore_brief)
     if (!IS_NPC(ch) && PRF_FLAGGED(ch, PRF_AUTOEXIT))
         do_auto_exits(ch);
     /* now list characters & objects */
-    list_obj_to_char(world[IN_ROOM(ch)].contents, ch, SHOW_OBJ_LONG, FALSE);
-    list_char_to_char(world[IN_ROOM(ch)].people, ch);
+        obj_list_mode = SHOW_OBJ_LONG;
+        if (ROOM_FLAGGED(IN_ROOM(ch), ROOM_HOUSE))
+             obj_list_mode = SHOW_OBJ_SHORT;
+
+        list_obj_to_char(world[IN_ROOM(ch)].contents, ch, obj_list_mode, FALSE);
+        list_char_to_char(world[IN_ROOM(ch)].people, ch);
+
 
     /* Show mana density if character has detect magic active */
     if (AFF_FLAGGED(ch, AFF_DETECT_MAGIC)) {
@@ -1490,18 +1495,12 @@ ACMD(do_affects)
                      (aff->duration == 1) ? "" : "s");
         }
 
-        send_to_char(ch, "  %s [%s]\r\n",
+        /* Nome da magia em branco, duração em ciano escuro entre colchetes brancos */
+        send_to_char(ch, "  \tW%s\tn \tW[\tc%s\tW]\tn\r\n",
                      skill_name(aff->spell),
                      duration_buf);
         has_spell_affects = 1;
     }
-
-    /* Se quiser, pode descomentar isso para mostrar quando não houver
-     * nenhum efeito de magia em ch->affected.
-     *
-     * if (!has_spell_affects)
-     *     send_to_char(ch, "  Nenhum efeito de magia ativo.\r\n");
-     */
 
     /* 2) Efeitos vindos de itens equipados (AFF_XXX em GET_OBJ_AFFECT) */
     {
@@ -1511,9 +1510,7 @@ ACMD(do_affects)
         char localbuf[MAX_STRING_LENGTH];
         char *tok;
 
-        /* Primeiro pass: apenas verificar se existe ALGUM efeito de item.
-         * (para decidir se vamos imprimir o cabeçalho "Efeitos de equipamentos:")
-         */
+        /* Primeiro pass: apenas verificar se existe ALGUM efeito de item. */
         for (i = 0; i < NUM_WEARS && !has_item_affects; i++) {
             if (!(obj = GET_EQ(ch, i)))
                 continue;
@@ -1538,7 +1535,7 @@ ACMD(do_affects)
 
         /* Se houver efeitos de item, imprimimos o cabeçalho e listamos por item */
         if (has_item_affects) {
-            send_to_char(ch, "\r\nEfeitos de equipamentos:\r\n");
+            send_to_char(ch, "\r\n\tWEfeitos de equipamentos:\tn\r\n");
 
             for (i = 0; i < NUM_WEARS; i++) {
                 if (!(obj = GET_EQ(ch, i)))
@@ -1552,9 +1549,8 @@ ACMD(do_affects)
                 tok = strtok(localbuf, " ");
 
                 /* Vamos imprimir um bloco por item assim:
-                 * [descrição curta do item]
-                 *     -> efeito1
-                 *     -> efeito2
+                 * [nome do item em ciano escuro, colchetes brancos]
+                 *     -> nome da magia em branco
                  */
                 int printed_header_for_this_item = 0;
 
@@ -1563,11 +1559,11 @@ ACMD(do_affects)
 
                     if (*pretty && strcmp(pretty, "\n") != 0) {
                         if (!printed_header_for_this_item) {
-                            send_to_char(ch, "[%s]\r\n",
+                            send_to_char(ch, "\tW[\tc%s\tW]\tn\r\n",
                                          obj->short_description ? obj->short_description : "(item sem descrição)");
                             printed_header_for_this_item = 1;
                         }
-                        send_to_char(ch, "    -> %s\r\n", pretty);
+                        send_to_char(ch, "    -> \tW%s\tn\r\n", pretty);
                     }
 
                     tok = strtok(NULL, " ");
